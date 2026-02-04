@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import PortfolioList from './components/PortfolioList';
 import StockPriceFetcher from './components/StockPriceFetcher';
+import CandlestickChart from './components/CandlestickChart';
 import './App.css';
 
 /**
@@ -60,6 +61,7 @@ function App() {
       <main className="app-main">
         <div className="container">
           <div className="portfolio-section">
+            <CandlestickChart />
             <PortfolioList ref={portfolioListRef} />
           </div>
           <div className="sidebar">
