@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createChart, CandlestickSeries } from 'lightweight-charts';
 import '../styles/CandlestickChart.css';
 
@@ -6,11 +6,13 @@ import '../styles/CandlestickChart.css';
  * CandlestickChart Component
  * Displays stock price history using candlestick charts like trading platforms.
  * Supports multiple timeframes and dark/light mode.
+ * Data powered by Twelve Data API with auto-refresh every 5 minutes.
  */
 const CandlestickChart = () => {
     const chartContainerRef = useRef(null);
     const chartRef = useRef(null);
     const candleSeriesRef = useRef(null);
+    const refreshIntervalRef = useRef(null);
 
     const [symbol, setSymbol] = useState('NVDA');
     const [searchInput, setSearchInput] = useState('NVDA');
@@ -19,9 +21,12 @@ const CandlestickChart = () => {
     const [error, setError] = useState(null);
     const [lastPrice, setLastPrice] = useState(null);
     const [priceChange, setPriceChange] = useState(null);
+    const [lastUpdated, setLastUpdated] = useState(null);
 
-    // Finnhub free API only supports D, W, M resolutions
-    // Intraday resolutions (1, 5, 15, 60) require paid subscription
+    // Auto-refresh interval in milliseconds (5 minutes to respect rate limits)
+    const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000;
+
+    // Supported resolutions (Twelve Data: 1day, 1week, 1month)
     const resolutions = [
         { value: 'D', label: '1D' },
         { value: 'W', label: '1W' },
@@ -45,24 +50,38 @@ const CandlestickChart = () => {
         }
     };
 
-    // Fetch candle data from backend
-    const fetchCandleData = async () => {
+    // Fetch candle data from backend (Twelve Data API)
+    const fetchCandleData = useCallback(async () => {
         setLoading(true);
         setError(null);
 
         try {
-            // Fetch candle data and current price in parallel
-            const [candleResponse] = await Promise.all([
-                fetch(`http://localhost:8080/api/candles/${symbol}?resolution=${resolution}`),
-            ]);
+            const response = await fetch(
+                `http://localhost:8080/api/candles/${symbol}?resolution=${resolution}`
+            );
 
-            if (!candleResponse.ok) {
-                const errorData = await candleResponse.json();
-                throw new Error(errorData.message || 'Failed to fetch candle data');
+            const data = await response.json();
+
+            // Handle error responses
+            if (!response.ok) {
+                // Check for specific error types
+                if (response.status === 429) {
+                    throw new Error('Rate limit exceeded. Please wait a moment before trying again.');
+                } else if (response.status === 503) {
+                    throw new Error('Chart service unavailable. Please check API configuration.');
+                } else if (data.message) {
+                    throw new Error(data.message);
+                } else {
+                    throw new Error('Failed to fetch chart data');
+                }
             }
 
-            const data = await candleResponse.json();
+            // Check for API error in response body
+            if (data.s === 'error') {
+                throw new Error(data.message || 'Failed to fetch chart data');
+            }
 
+            // Validate data structure
             if (!data.c || data.c.length === 0) {
                 throw new Error('No data available for this symbol');
             }
@@ -90,6 +109,9 @@ const CandlestickChart = () => {
                 chartRef.current.timeScale().fitContent();
             }
 
+            // Update last updated timestamp
+            setLastUpdated(new Date());
+
             // Fetch current real-time price separately for consistency
             await fetchCurrentPrice();
 
@@ -100,7 +122,7 @@ const CandlestickChart = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [symbol, resolution]);
 
     // Initialize chart
     useEffect(() => {
@@ -183,8 +205,18 @@ const CandlestickChart = () => {
         // Fetch initial data
         fetchCandleData();
 
+        // Set up auto-refresh interval (every 5 minutes)
+        refreshIntervalRef.current = setInterval(() => {
+            console.log('Auto-refreshing chart data...');
+            fetchCandleData();
+        }, AUTO_REFRESH_INTERVAL);
+
         return () => {
             window.removeEventListener('resize', handleResize);
+            // Clear auto-refresh interval
+            if (refreshIntervalRef.current) {
+                clearInterval(refreshIntervalRef.current);
+            }
             if (chartRef.current) {
                 chartRef.current.remove();
                 chartRef.current = null;
@@ -236,6 +268,17 @@ const CandlestickChart = () => {
         setResolution(newResolution);
     };
 
+    // Handle manual refresh
+    const handleRefresh = () => {
+        fetchCandleData();
+    };
+
+    // Format last updated time
+    const formatLastUpdated = () => {
+        if (!lastUpdated) return null;
+        return lastUpdated.toLocaleTimeString();
+    };
+
     return (
         <div className="candlestick-chart-container">
             <div className="chart-header">
@@ -252,6 +295,19 @@ const CandlestickChart = () => {
                             </span>
                         )}
                     </div>
+                    {lastUpdated && (
+                        <div className="last-updated">
+                            <span>Updated: {formatLastUpdated()}</span>
+                            <button
+                                onClick={handleRefresh}
+                                className="refresh-btn"
+                                disabled={loading}
+                                title="Refresh chart data"
+                            >
+                                🔄
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <form onSubmit={handleSearch} className="chart-search-form">
@@ -282,6 +338,11 @@ const CandlestickChart = () => {
                         </button>
                     ))}
                 </div>
+                <div className="chart-info">
+                    <span className="api-badge" title="Data refreshes every 5 minutes">
+                        ⏱️ Auto-refresh: 5min
+                    </span>
+                </div>
             </div>
 
             {error && (
@@ -309,6 +370,9 @@ const CandlestickChart = () => {
                 </span>
                 <span className="legend-item">
                     <span className="legend-color down"></span> Bearish (Price Down)
+                </span>
+                <span className="data-source">
+                    Data by Twelve Data
                 </span>
             </div>
         </div>

@@ -29,9 +29,9 @@ Stock Portfolio Manager is a full-stack web application built with Spring Boot a
 - Comprehensive testing
 - Clean code principles
 
-The application connects to the Finnhub API to fetch live stock prices and calculates portfolio metrics in real-time.
+The application connects to the Finnhub API for real-time stock prices and Twelve Data API for historical chart data, calculating portfolio metrics in real-time.
 
-StockPortfolio is a Java Spring Boot application designed to help users manage their stock investments efficiently. It provides real-time stock price tracking, portfolio management with weighted average price calculations, and comprehensive profit/loss analysis.
+StockPortfolio is a Java Spring Boot application designed to help users manage their stock investments efficiently. It provides real-time stock price tracking, historical candlestick charts, portfolio management with weighted average price calculations, and comprehensive profit/loss analysis.
 
 **Status:** ✅ **Production Ready** - All features tested and working
 
@@ -46,13 +46,20 @@ StockPortfolio is a Java Spring Boot application designed to help users manage t
    - Graceful error handling with fallback mechanisms
    - Comprehensive logging for debugging
 
-### 2. **Portfolio Management System**
+### 2. **Historical Stock Charts**
+   - Integrates with Twelve Data API for real candlestick chart data
+   - Supports daily, weekly, and monthly timeframes
+   - Auto-refresh every 5 minutes (respects API rate limits)
+   - Professional trading-style chart interface
+   - Dark/light mode support
+
+### 3. **Portfolio Management System**
    - Create and manage portfolio items
    - Add stocks to portfolio with purchase price and quantity
    - Automatic weighted average price calculation when buying more of the same stock
    - Formula: `NewPrice = (OldQty × OldPrice + NewQty × BuyPrice) / (OldQty + NewQty)`
 
-### 3. **Unified Portfolio View**
+### 4. **Unified Portfolio View**
    - View complete portfolio with live market prices
    - Each holding shows:
      - Stock symbol
@@ -103,12 +110,14 @@ StockPortfolio is a Java Spring Boot application designed to help users manage t
 ```
 ┌─────────────────────────────────────────┐
 │         REST Controllers                 │
-│  (StockController, PortfolioController) │
+│  (StockController, PortfolioController, │
+│   CandleController)                     │
 └──────────────────┬──────────────────────┘
                    │
 ┌──────────────────▼──────────────────────┐
 │           Services                      │
-│ (StockPriceService, PortfolioService)  │
+│ (StockPriceService, PortfolioService,  │
+│  CandleService, TwelveDataService)     │
 └──────────────────┬──────────────────────┘
                    │
 ┌──────────────────▼──────────────────────┐
@@ -121,7 +130,9 @@ StockPortfolio is a Java Spring Boot application designed to help users manage t
 └─────────────────────────────────────────┘
                    │
 ┌──────────────────▼──────────────────────┐
-│    External APIs (Finnhub API)          │
+│    External APIs                        │
+│  - Finnhub (real-time quotes)           │
+│  - Twelve Data (historical charts)      │
 └─────────────────────────────────────────┘
 ```
 
@@ -182,7 +193,8 @@ StockPortfolio/
 ### Prerequisites
 - Java 17 or higher
 - Maven 3.6 or higher
-- Internet connection (for Finnhub API)
+- Internet connection (for external APIs)
+- Twelve Data API key (free tier available at https://twelvedata.com)
 
 ### Installation & Running
 
@@ -192,7 +204,20 @@ StockPortfolio/
    cd StockPotrfolio
    ```
 
-2. **Build the project**
+2. **Configure API Keys**
+   
+   Edit `src/main/resources/application.properties`:
+   ```properties
+   # Finnhub API (for real-time quotes) - default key included
+   finnhub.api.token=YOUR_FINNHUB_API_KEY
+   
+   # Twelve Data API (for historical charts) - REQUIRED
+   twelvedata.api.key=YOUR_TWELVEDATA_API_KEY
+   ```
+   
+   **Note:** The application includes a default Finnhub API key. For Twelve Data, you must obtain your own free API key.
+
+3. **Build the project**
    ```bash
    mvn clean package
    ```
@@ -340,7 +365,20 @@ springdoc.swagger-ui.enabled=true
   - `getCurrentPriceOrThrow(String symbol)` - Returns price or throws exception
 - **Features:** Error handling, input validation, comprehensive logging
 
-### **2. PortfolioService**
+### **2. TwelveDataService**
+- **Responsibility:** Fetches historical OHLCV data from Twelve Data API
+- **Key Methods:**
+  - `getTimeSeries(String symbol, String interval, int outputSize)` - Returns candlestick data
+  - `isApiKeyConfigured()` - Checks if API key is set
+- **Features:** Rate limit handling (8 req/min, 800/day), error handling, data transformation
+
+### **3. CandleService**
+- **Responsibility:** Orchestrates candlestick chart data retrieval
+- **Key Methods:**
+  - `getCandleData(String symbol, String resolution, long from, long to)` - Returns OHLCV data
+- **Features:** Resolution mapping (D/W/M), proper error responses, no mock data fallback
+
+### **4. PortfolioService**
 - **Responsibility:** Manages portfolio operations and calculations
 - **Key Methods:**
   - `buyStock(String symbol, Double buyPrice, Integer quantity)` - Add/update stocks

@@ -18,11 +18,13 @@ import java.util.Map;
 
 /**
  * REST Controller for candlestick chart data.
- * Provides endpoints to fetch historical OHLCV data from Finnhub API.
+ * Provides endpoints to fetch historical OHLCV data from Twelve Data API.
+ *
+ * Rate Limits: 8 requests/minute, 800 requests/day on free tier.
  */
 @RestController
 @RequestMapping("/api/candles")
-@Tag(name = "Candles", description = "Candlestick chart data endpoints")
+@Tag(name = "Candles", description = "Candlestick chart data endpoints (powered by Twelve Data)")
 @Slf4j
 public class CandleController {
 
@@ -37,14 +39,14 @@ public class CandleController {
      * Get candlestick data for a given stock symbol.
      *
      * @param symbol the stock symbol (e.g., "AAPL", "NVDA")
-     * @param resolution candle resolution: 1, 5, 15, 30, 60 (minutes), D (day), W (week), M (month)
-     * @param from Unix timestamp for start time (optional, defaults to 30 days ago)
-     * @param to Unix timestamp for end time (optional, defaults to now)
+     * @param resolution candle resolution: D (day), W (week), M (month)
+     * @param from Unix timestamp for start time (optional, for API compatibility)
+     * @param to Unix timestamp for end time (optional, for API compatibility)
      * @return ResponseEntity with candle data or error message
      */
     @GetMapping("/{symbol}")
     @Operation(summary = "Get candlestick data",
-            description = "Fetches historical OHLCV candlestick data for a given stock symbol from Finnhub API")
+            description = "Fetches historical OHLCV candlestick data for a given stock symbol from Twelve Data API. Rate limited to 8 requests/minute.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200",
                     description = "Successfully retrieved candle data",
@@ -55,6 +57,9 @@ public class CandleController {
             @ApiResponse(responseCode = "404",
                     description = "No candle data available for symbol",
                     content = @Content(mediaType = "application/json")),
+            @ApiResponse(responseCode = "429",
+                    description = "Rate limit exceeded (8 requests/minute)",
+                    content = @Content(mediaType = "application/json")),
             @ApiResponse(responseCode = "500",
                     description = "Error fetching candle data from API",
                     content = @Content(mediaType = "application/json"))
@@ -62,15 +67,14 @@ public class CandleController {
     public ResponseEntity<?> getCandleData(
             @Parameter(description = "Stock symbol (e.g., AAPL, NVDA)", required = true, example = "NVDA")
             @PathVariable String symbol,
-            @Parameter(description = "Candle resolution: D (day), W (week), M (month). Note: Intraday resolutions require paid Finnhub subscription", example = "D")
+            @Parameter(description = "Candle resolution: D (day), W (week), M (month)", example = "D")
             @RequestParam(defaultValue = "D") String resolution,
-            @Parameter(description = "Start time as Unix timestamp (defaults to 30 days ago)")
+            @Parameter(description = "Start time as Unix timestamp (optional, for API compatibility)")
             @RequestParam(required = false) Long from,
-            @Parameter(description = "End time as Unix timestamp (defaults to now)")
+            @Parameter(description = "End time as Unix timestamp (optional, for API compatibility)")
             @RequestParam(required = false) Long to) {
 
-        log.info("Received request for candle data - Symbol: {}, Resolution: {}, From: {}, To: {}",
-                symbol, resolution, from, to);
+        log.info("Received request for candle data - Symbol: {}, Resolution: {}", symbol, resolution);
 
         // Validate symbol
         if (symbol == null || symbol.trim().isEmpty()) {
@@ -79,22 +83,21 @@ public class CandleController {
                     .body(new ErrorResponse("Invalid symbol", "Stock symbol cannot be null or empty"));
         }
 
-        // Validate resolution (only D, W, M supported on free tier)
+        // Validate resolution
         if (!isValidResolution(resolution)) {
             log.warn("Invalid resolution provided: {}", resolution);
             return ResponseEntity.badRequest()
                     .body(new ErrorResponse("Invalid resolution",
-                            "Resolution must be one of: D (daily), W (weekly), M (monthly). Intraday resolutions require paid Finnhub subscription."));
+                            "Resolution must be one of: D (daily), W (weekly), M (monthly)"));
         }
 
         try {
-            // Set default time range if not provided (last 30 days)
+            // Set default time range if not provided
             long now = System.currentTimeMillis() / 1000;
             if (to == null) {
                 to = now;
             }
             if (from == null) {
-                // Default based on resolution
                 from = getDefaultFromTime(resolution, to);
             }
 
@@ -105,6 +108,28 @@ public class CandleController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(new ErrorResponse("Data not found",
                                 "No candle data available for symbol: " + symbol.toUpperCase()));
+            }
+
+            // Check if response is an error from the service
+            if ("error".equals(candleData.get("s"))) {
+                String errorCode = (String) candleData.get("code");
+                String errorMessage = (String) candleData.get("message");
+
+                // Check for rate limit error
+                if (errorCode != null && errorCode.contains("429")) {
+                    return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                            .body(new ErrorResponse("Rate limit exceeded", errorMessage));
+                }
+
+                // Check for API key error
+                if ("API_KEY_MISSING".equals(errorCode)) {
+                    return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                            .body(new ErrorResponse("Service unavailable", errorMessage));
+                }
+
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ErrorResponse(errorCode != null ? errorCode : "API Error",
+                                errorMessage != null ? errorMessage : "Failed to fetch data"));
             }
 
             log.info("Successfully retrieved candle data for symbol: {}", symbol);
@@ -120,8 +145,7 @@ public class CandleController {
 
     /**
      * Validates the resolution parameter.
-     * Finnhub free API only supports D (daily), W (weekly), M (monthly)
-     * Intraday resolutions require a paid subscription
+     * Supported: D (daily), W (weekly), M (monthly)
      */
     private boolean isValidResolution(String resolution) {
         if (resolution == null) return false;
@@ -130,13 +154,13 @@ public class CandleController {
 
     /**
      * Gets default 'from' time based on resolution.
-     * Only D, W, M resolutions are supported on Finnhub free tier.
+     * This is kept for API compatibility but Twelve Data uses outputSize instead.
      */
     private long getDefaultFromTime(String resolution, long to) {
         return switch (resolution) {
-            case "W" -> to - (365 * 24 * 60 * 60);     // 1 year for weekly candles
-            case "M" -> to - (3 * 365 * 24 * 60 * 60); // 3 years for monthly candles
-            default -> to - (90 * 24 * 60 * 60);       // 90 days for daily candles
+            case "W" -> to - (365L * 24 * 60 * 60);     // 1 year for weekly candles
+            case "M" -> to - (3L * 365 * 24 * 60 * 60); // 3 years for monthly candles
+            default -> to - (90L * 24 * 60 * 60);       // 90 days for daily candles
         };
     }
 }
