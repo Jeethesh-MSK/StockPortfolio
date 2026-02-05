@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import PortfolioPage from './components/PortfolioPage';
+import AIAssistant from './components/AIAssistant';
 import './App.css';
 
 /**
@@ -53,6 +54,8 @@ function App() {
         return <Dashboard onPurchaseComplete={handlePurchaseComplete} />;
       case 'portfolio':
         return <PortfolioPage ref={portfolioListRef} />;
+      case 'ai-assistant':
+        return <AIAssistant />;
       default:
         return <Dashboard onPurchaseComplete={handlePurchaseComplete} />;
     }
@@ -90,7 +93,7 @@ function App() {
         <header className="top-header">
           <div className="header-left">
             <h2 className="page-title">
-              {activePage === 'dashboard' ? 'Dashboard' : 'Portfolio'}
+              {activePage === 'dashboard' ? 'Dashboard' : activePage === 'portfolio' ? 'Portfolio' : 'AI Assistant'}
             </h2>
           </div>
           <div className="header-right">

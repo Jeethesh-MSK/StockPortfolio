@@ -9,6 +9,7 @@ const Sidebar = ({ activePage, onPageChange }) => {
     const menuItems = [
         { id: 'dashboard', label: 'Dashboard', icon: 'chart', description: 'Charts & Stock Lookup' },
         { id: 'portfolio', label: 'Portfolio', icon: 'briefcase', description: 'Your Holdings' },
+        { id: 'ai-assistant', label: 'AI Assistant', icon: 'ai', description: 'Stock Insights & Chat' },
     ];
 
     // SVG Icons for clean professional look
@@ -25,6 +26,15 @@ const Sidebar = ({ activePage, onPageChange }) => {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
                 <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+            </svg>
+        ),
+        ai: (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 8V4H8"/>
+                <rect x="8" y="8" width="8" height="8" rx="2"/>
+                <path d="M16 8V4h4"/>
+                <path d="M12 16v4h4"/>
+                <path d="M8 16v4H4"/>
             </svg>
         ),
         trending: (
