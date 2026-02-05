@@ -30,11 +30,19 @@
 }
 
 .performance-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
   padding: 0.35rem 0.75rem;
   border-radius: 4px;
   font-weight: 600;
   font-size: 0.8rem;
   font-feature-settings: 'tnum';
+}
+
+.perf-arrow {
+  font-weight: 700;
+  font-size: 0.9rem;
 }
 
 .performance-badge.profit {

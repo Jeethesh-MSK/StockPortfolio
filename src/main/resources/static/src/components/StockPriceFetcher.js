@@ -115,7 +115,7 @@ const StockPriceFetcher = ({ onPurchaseComplete }) => {
 
       {error && (
         <div className="error-message">
-          <span>⚠️ {error}</span>
+          <span>{error}</span>
         </div>
       )}
 
@@ -140,7 +140,7 @@ const StockPriceFetcher = ({ onPurchaseComplete }) => {
           {/* Buy Button */}
           <div className="stock-actions">
             <button className="buy-stock-btn" onClick={openBuyModal}>
-              💰 Buy This Stock
+              Buy This Stock
             </button>
           </div>
         </div>

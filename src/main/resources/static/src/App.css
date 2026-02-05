@@ -18,10 +18,11 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
-  --header-bg: #1a1f36;
-  --header-text: #ffffff;
+  --header-bg: #ffffff;
+  --header-text: #172b4d;
   --modal-overlay: rgba(9, 30, 66, 0.54);
   --transition: all 0.2s ease;
+  --sidebar-width: 260px;
 }
 
 /* Dark Mode Variables */
@@ -62,48 +63,46 @@ body {
   transition: background 0.3s ease, color 0.3s ease;
 }
 
-.app {
+/* ===== New App Layout with Sidebar ===== */
+.app-layout {
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
   background: var(--background-main);
   transition: background 0.3s ease;
 }
 
-.app-header {
-  background: var(--header-bg);
-  color: var(--header-text);
-  padding: 1rem 2rem;
-  box-shadow: var(--shadow-md);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  transition: background 0.3s ease;
+.main-content {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-.header-content {
-  max-width: 1400px;
-  margin: 0 auto;
+/* Top Header Bar */
+.top-header {
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border-color);
+  padding: 1rem 2rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
-.header-left h1 {
-  font-size: 1.5rem;
-  margin-bottom: 0;
+.page-title {
+  font-size: 1.25rem;
   font-weight: 600;
-  letter-spacing: -0.5px;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.header-left {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-}
-
-.header-left p {
-  font-size: 0.875rem;
-  opacity: 0.7;
-  font-weight: 400;
-  margin-top: 0.25rem;
 }
 
 .header-right {
@@ -117,10 +116,10 @@ body {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--background-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  color: var(--header-text);
+  color: var(--text-primary);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -128,13 +127,19 @@ body {
 }
 
 .theme-toggle:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: var(--border-color);
 }
 
 .theme-icon {
-  font-size: 1.125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
+}
+
+.theme-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .theme-label {
@@ -143,6 +148,28 @@ body {
   letter-spacing: 0.5px;
 }
 
+/* Page Content Area */
+.page-content {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+.app-footer {
+  background: var(--background-card);
+  color: var(--text-muted);
+  text-align: center;
+  padding: 1rem 2rem;
+  font-size: 0.8rem;
+  border-top: 1px solid var(--border-color);
+  transition: background 0.3s ease;
+}
+
+.app-footer p {
+  margin: 0;
+}
+
+/* Legacy styles for backwards compatibility */
 .app-main {
   flex: 1;
   padding: 2rem;
@@ -166,20 +193,6 @@ body {
   top: 100px;
 }
 
-.app-footer {
-  background: var(--header-bg);
-  color: var(--text-muted);
-  text-align: center;
-  padding: 1rem 2rem;
-  font-size: 0.8rem;
-  border-top: 1px solid var(--border-color);
-  transition: background 0.3s ease;
-}
-
-.app-footer p {
-  margin: 0;
-}
-
 /* Responsive Design */
 @media (max-width: 1200px) {
   .container {
@@ -200,16 +213,16 @@ body {
 }
 
 @media (max-width: 768px) {
-  .app-header {
-    padding: 1rem 1.5rem;
+  :root {
+    --sidebar-width: 70px;
   }
 
-  .header-left h1 {
-    font-size: 1.25rem;
+  .top-header {
+    padding: 1rem;
   }
 
-  .header-left p {
-    display: none;
+  .page-title {
+    font-size: 1.1rem;
   }
 
   .theme-label {
@@ -220,11 +233,7 @@ body {
     padding: 0.5rem;
   }
 
-  .app-main {
+  .page-content {
     padding: 1rem;
-  }
-
-  .container {
-    gap: 1.5rem;
   }
 }

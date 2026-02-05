@@ -210,12 +210,27 @@ public class TwelveDataService {
     }
 
     /**
-     * Maps resolution to Twelve Data interval.
-     * D -> 1day, W -> 1week, M -> 1month
+     * Maps resolution (time period) to Twelve Data interval.
+     *
+     * Google Finance style data granularity:
+     * - 1D = Intraday view with 5-minute candles (full trading day)
+     * - 1W = Past week with 30-minute candles
+     * - 1M = Past month with daily candles (~22 trading days)
+     * - 1Y = Past year with daily candles (~252 trading days)
+     * - 5Y = Past 5 years with weekly candles
+     * - MAX = All available data with monthly candles
      */
     public static String mapResolutionToInterval(String resolution) {
         if (resolution == null) return "1day";
         return switch (resolution.toUpperCase()) {
+            case "1D" -> "5min";     // 5-minute candles for intraday
+            case "1W" -> "30min";    // 30-minute candles for past week
+            case "1M" -> "1day";     // Daily candles for past month
+            case "1Y" -> "1day";     // Daily candles for past year
+            case "5Y" -> "1week";    // Weekly candles for 5 years
+            case "MAX" -> "1month";  // Monthly candles for all time
+            // Legacy support
+            case "D" -> "1day";
             case "W" -> "1week";
             case "M" -> "1month";
             default -> "1day";
@@ -223,13 +238,23 @@ public class TwelveDataService {
     }
 
     /**
-     * Gets recommended output size based on interval.
+     * Gets recommended output size based on resolution (time range).
+     * This determines how many data points to fetch.
      */
-    public static int getRecommendedOutputSize(String interval) {
-        return switch (interval) {
-            case "1week" -> 52;    // ~1 year of weekly data
-            case "1month" -> 36;   // 3 years of monthly data
-            default -> 90;         // 90 days of daily data
+    public static int getRecommendedOutputSize(String resolution) {
+        if (resolution == null) return 22;
+        return switch (resolution.toUpperCase()) {
+            case "1D" -> 78;        // ~78 x 5min candles for trading day (9:30 AM - 4:00 PM)
+            case "1W" -> 65;        // ~65 x 30min candles for 5 trading days
+            case "1M" -> 22;        // ~22 trading days in a month
+            case "1Y" -> 252;       // ~252 trading days in a year
+            case "5Y" -> 260;       // ~260 weeks in 5 years
+            case "MAX" -> 120;      // 10 years of monthly data
+            // Legacy support
+            case "D" -> 90;
+            case "W" -> 52;
+            case "M" -> 36;
+            default -> 22;
         };
     }
 

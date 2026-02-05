@@ -27,6 +27,9 @@
 }
 
 .refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   background: var(--background-secondary, #f4f5f7);
   color: var(--text-primary, #172b4d);
   border: 1px solid var(--border-color, #dfe1e6);
@@ -38,13 +41,30 @@
   transition: all 0.2s ease;
 }
 
+.refresh-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
 .refresh-btn:hover:not(:disabled) {
-  background: var(--border-color, #ebecf0);
+  background: var(--primary-blue, #0052cc);
+  border-color: var(--primary-blue, #0052cc);
+  color: white;
 }
 
 .refresh-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.refresh-btn:disabled svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .error-message {

@@ -16,7 +16,7 @@ const CandlestickChart = () => {
 
     const [symbol, setSymbol] = useState('NVDA');
     const [searchInput, setSearchInput] = useState('NVDA');
-    const [resolution, setResolution] = useState('D');
+    const [resolution, setResolution] = useState('1M');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [lastPrice, setLastPrice] = useState(null);
@@ -26,11 +26,12 @@ const CandlestickChart = () => {
     // Auto-refresh interval in milliseconds (5 minutes to respect rate limits)
     const AUTO_REFRESH_INTERVAL = 5 * 60 * 1000;
 
-    // Supported resolutions (Twelve Data: 1day, 1week, 1month)
+    // Supported time ranges (Google Finance style)
+    // 1D = Today's hourly data, 1W = Past week daily, 1M = Past month daily, 1Y = Past year weekly, MAX = All time monthly
     const resolutions = [
-        { value: 'D', label: '1D' },
-        { value: 'W', label: '1W' },
-        { value: 'M', label: '1M' },
+        { value: '1D', label: '1D' },
+        { value: '1W', label: '1W' },
+        { value: '1M', label: '1M' },
     ];
 
     // Fetch current real-time price from quote API
@@ -95,11 +96,13 @@ const CandlestickChart = () => {
                 close: data.c[index],
             }));
 
-            // Calculate price change based on candle data
+            // Calculate price change based on the selected timeframe
+            // For accurate period change: compare current close to the close from one period ago
             if (candleData.length > 1) {
-                const firstPrice = candleData[0].open;
-                const lastCandleClose = candleData[candleData.length - 1].close;
-                const change = ((lastCandleClose - firstPrice) / firstPrice) * 100;
+                // Get the previous period's close price (second-to-last candle)
+                const previousClose = candleData[candleData.length - 2].close;
+                const currentClose = candleData[candleData.length - 1].close;
+                const change = ((currentClose - previousClose) / previousClose) * 100;
                 setPriceChange(change);
             }
 

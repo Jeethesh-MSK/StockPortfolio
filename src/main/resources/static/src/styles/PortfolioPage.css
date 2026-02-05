@@ -1,0 +1,35 @@
+/* ===== Portfolio Page Styles ===== */
+
+.portfolio-page {
+    padding: 0;
+}
+
+.portfolio-header {
+    margin-bottom: 1.5rem;
+}
+
+.portfolio-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 0.5rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.portfolio-header p {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.portfolio-content {
+    min-width: 0;
+}
+
+@media (max-width: 768px) {
+    .portfolio-header h1 {
+        font-size: 1.5rem;
+    }
+}

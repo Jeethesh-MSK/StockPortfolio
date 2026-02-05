@@ -67,8 +67,8 @@ public class CandleController {
     public ResponseEntity<?> getCandleData(
             @Parameter(description = "Stock symbol (e.g., AAPL, NVDA)", required = true, example = "NVDA")
             @PathVariable String symbol,
-            @Parameter(description = "Candle resolution: D (day), W (week), M (month)", example = "D")
-            @RequestParam(defaultValue = "D") String resolution,
+            @Parameter(description = "Time range: 1D (today), 1W (past week), 1M (past month), 1Y (past year), MAX (all time)", example = "1M")
+            @RequestParam(defaultValue = "1M") String resolution,
             @Parameter(description = "Start time as Unix timestamp (optional, for API compatibility)")
             @RequestParam(required = false) Long from,
             @Parameter(description = "End time as Unix timestamp (optional, for API compatibility)")
@@ -88,7 +88,7 @@ public class CandleController {
             log.warn("Invalid resolution provided: {}", resolution);
             return ResponseEntity.badRequest()
                     .body(new ErrorResponse("Invalid resolution",
-                            "Resolution must be one of: D (daily), W (weekly), M (monthly)"));
+                            "Resolution must be one of: 1D (today), 1W (past week), 1M (past month), 1Y (past year), MAX (all time)"));
         }
 
         try {
@@ -145,11 +145,12 @@ public class CandleController {
 
     /**
      * Validates the resolution parameter.
-     * Supported: D (daily), W (weekly), M (monthly)
+     * Supported: 1D (today), 1W (past week), 1M (past month), 1Y (past year), 5Y (5 years), MAX (all time)
+     * Legacy support: D, W, M
      */
     private boolean isValidResolution(String resolution) {
         if (resolution == null) return false;
-        return resolution.matches("^(D|W|M)$");
+        return resolution.matches("^(1D|1W|1M|1Y|5Y|MAX|D|W|M)$");
     }
 
     /**
@@ -157,10 +158,15 @@ public class CandleController {
      * This is kept for API compatibility but Twelve Data uses outputSize instead.
      */
     private long getDefaultFromTime(String resolution, long to) {
-        return switch (resolution) {
-            case "W" -> to - (365L * 24 * 60 * 60);     // 1 year for weekly candles
-            case "M" -> to - (3L * 365 * 24 * 60 * 60); // 3 years for monthly candles
-            default -> to - (90L * 24 * 60 * 60);       // 90 days for daily candles
+        return switch (resolution.toUpperCase()) {
+            case "1D" -> to - (24L * 60 * 60);           // 1 day
+            case "1W" -> to - (7L * 24 * 60 * 60);       // 1 week
+            case "1M" -> to - (30L * 24 * 60 * 60);      // 1 month
+            case "1Y" -> to - (365L * 24 * 60 * 60);     // 1 year
+            case "MAX" -> to - (5L * 365 * 24 * 60 * 60); // 5 years
+            case "W" -> to - (365L * 24 * 60 * 60);      // Legacy: 1 year for weekly
+            case "M" -> to - (3L * 365 * 24 * 60 * 60);  // Legacy: 3 years for monthly
+            default -> to - (30L * 24 * 60 * 60);        // Default: 30 days
         };
     }
 }

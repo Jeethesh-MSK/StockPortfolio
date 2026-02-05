@@ -90,7 +90,7 @@ const PortfolioItem = ({ symbol, quantity, averageBuyPrice, currentLivePrice, pr
       <div className="portfolio-item-header">
         <h3 className="symbol">{symbol}</h3>
         <div className={`performance-badge ${isProfit ? 'profit' : 'loss'}`}>
-          {isProfit ? '📈' : '📉'} {profitOrLossPercentage.toFixed(2)}%
+          <span className="perf-arrow">{isProfit ? '↑' : '↓'}</span> {profitOrLossPercentage.toFixed(2)}%
         </div>
       </div>
 
@@ -128,10 +128,10 @@ const PortfolioItem = ({ symbol, quantity, averageBuyPrice, currentLivePrice, pr
 
       <div className="portfolio-item-actions">
         <button className="btn-buy" onClick={() => openModal('buy')}>
-          💰 Buy
+          Buy
         </button>
         <button className="btn-sell" onClick={() => openModal('sell')}>
-          📤 Sell
+          Sell
         </button>
       </div>
 

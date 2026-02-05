@@ -41,7 +41,7 @@ public class CandleService {
         }
 
         if (resolution == null || resolution.trim().isEmpty()) {
-            resolution = "D";
+            resolution = "1M";  // Default to 1 month view (like Google Finance)
         }
 
         String upperSymbol = symbol.toUpperCase().trim();
@@ -53,9 +53,9 @@ public class CandleService {
                 "Twelve Data API key is not configured. Please set twelvedata.api.key in application.properties");
         }
 
-        // Map resolution to Twelve Data interval
+        // Map resolution to Twelve Data interval and get appropriate output size
         String interval = TwelveDataService.mapResolutionToInterval(resolution);
-        int outputSize = TwelveDataService.getRecommendedOutputSize(interval);
+        int outputSize = TwelveDataService.getRecommendedOutputSize(resolution);  // Pass resolution, not interval
 
         log.info("Fetching candle data from Twelve Data for symbol: {}, interval: {}, outputSize: {}",
                 upperSymbol, interval, outputSize);
