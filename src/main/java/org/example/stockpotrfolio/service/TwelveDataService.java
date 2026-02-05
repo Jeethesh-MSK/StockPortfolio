@@ -76,6 +76,13 @@ public class TwelveDataService {
                 String errorCode = String.valueOf(response.get("code"));
                 String errorMessage = String.valueOf(response.get("message"));
                 log.error("Twelve Data API error for symbol {}: {} - {}", upperSymbol, errorCode, errorMessage);
+
+                // Check for rate limit errors
+                if (errorCode.contains("429") || errorMessage.toLowerCase().contains("rate limit")) {
+                    log.warn("Rate limit exceeded for Twelve Data API");
+                    return createErrorResponse("429", "Rate limit exceeded. Please try again later.");
+                }
+
                 return createErrorResponse(errorCode, errorMessage);
             }
 
@@ -99,10 +106,16 @@ public class TwelveDataService {
             return transformToStandardFormat(values, upperSymbol);
 
         } catch (RestClientException e) {
-            log.error("Twelve Data API call failed for symbol: {}. Error: {}", upperSymbol, e.getMessage());
+            log.error("Twelve Data API call failed for symbol: {}. Error: {}", upperSymbol, e.getMessage(), e);
+            return null;
+        } catch (NullPointerException e) {
+            log.error("Null pointer while processing Twelve Data response for symbol: {}. Error: {}", upperSymbol, e.getMessage(), e);
+            return null;
+        } catch (ClassCastException e) {
+            log.error("Invalid response format from Twelve Data for symbol: {}. Error: {}", upperSymbol, e.getMessage(), e);
             return null;
         } catch (Exception e) {
-            log.error("Unexpected error fetching from Twelve Data for symbol: {}. Error: {}", upperSymbol, e.getMessage());
+            log.error("Unexpected error fetching from Twelve Data for symbol: {}. Error: {}", upperSymbol, e.getMessage(), e);
             return null;
         }
     }

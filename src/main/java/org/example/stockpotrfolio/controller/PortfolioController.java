@@ -12,6 +12,10 @@ import lombok.Setter;
 import org.example.stockpotrfolio.dto.ErrorResponse;
 import org.example.stockpotrfolio.dto.PortfolioSummary;
 import org.example.stockpotrfolio.entity.PortfolioItem;
+import org.example.stockpotrfolio.exception.DatabaseException;
+import org.example.stockpotrfolio.exception.InsufficientSharesException;
+import org.example.stockpotrfolio.exception.ResourceNotFoundException;
+import org.example.stockpotrfolio.exception.ValidationException;
 import org.example.stockpotrfolio.service.PortfolioService;
 import org.example.stockpotrfolio.service.StockPriceService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -103,6 +107,16 @@ public class PortfolioController {
             log.info("Successfully generated {} portfolio summaries with live prices", portfolioSummaries.size());
             return ResponseEntity.ok(new PortfolioResponse(portfolioSummaries));
 
+        } catch (DatabaseException e) {
+            log.error("Database error fetching portfolio: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Database Error",
+                            "Unable to retrieve portfolio. Please try again later."));
+        } catch (NullPointerException e) {
+            log.error("Null pointer error fetching portfolio: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Internal Error",
+                            "An unexpected error occurred while fetching the portfolio"));
         } catch (Exception e) {
             log.error("Error fetching portfolio with live prices", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -178,18 +192,15 @@ public class PortfolioController {
         try {
             // Validate request
             if (request.getSymbol() == null || request.getSymbol().trim().isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(new ErrorResponse("Validation Error", "Stock symbol is required"));
+                throw new ValidationException("Stock symbol is required");
             }
 
             if (request.getQuantity() == null || request.getQuantity() <= 0) {
-                return ResponseEntity.badRequest()
-                        .body(new ErrorResponse("Validation Error", "Quantity must be greater than 0"));
+                throw new ValidationException("Quantity must be greater than 0");
             }
 
             if (request.getPrice() == null || request.getPrice() <= 0) {
-                return ResponseEntity.badRequest()
-                        .body(new ErrorResponse("Validation Error", "Price must be greater than 0"));
+                throw new ValidationException("Price must be greater than 0");
             }
 
             // Process the buy transaction
@@ -208,10 +219,18 @@ public class PortfolioController {
                     item.getAverageBuyPrice()
             ));
 
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid buy request: {}", e.getMessage());
+        } catch (ValidationException e) {
+            log.warn("Validation error in buy request: {}", e.getMessage());
             return ResponseEntity.badRequest()
                     .body(new ErrorResponse("Validation Error", e.getMessage()));
+        } catch (DatabaseException e) {
+            log.error("Database error processing buy request: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Transaction Error", "An error occurred while processing the purchase"));
+        } catch (NullPointerException e) {
+            log.error("Null pointer in buy request: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Internal Error", "An unexpected error occurred"));
         } catch (Exception e) {
             log.error("Error processing buy request", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -247,13 +266,11 @@ public class PortfolioController {
         try {
             // Validate request
             if (request.getSymbol() == null || request.getSymbol().trim().isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(new ErrorResponse("Validation Error", "Stock symbol is required"));
+                throw new ValidationException("Stock symbol is required");
             }
 
             if (request.getQuantity() == null || request.getQuantity() <= 0) {
-                return ResponseEntity.badRequest()
-                        .body(new ErrorResponse("Validation Error", "Quantity must be greater than 0"));
+                throw new ValidationException("Quantity must be greater than 0");
             }
 
             // Process the sell transaction
@@ -278,10 +295,26 @@ public class PortfolioController {
                     item != null ? item.getAverageBuyPrice() : 0.0
             ));
 
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid sell request: {}", e.getMessage());
+        } catch (ValidationException e) {
+            log.warn("Validation error in sell request: {}", e.getMessage());
             return ResponseEntity.badRequest()
                     .body(new ErrorResponse("Validation Error", e.getMessage()));
+        } catch (ResourceNotFoundException e) {
+            log.warn("Stock not found in sell request: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ErrorResponse("Not Found", e.getMessage()));
+        } catch (InsufficientSharesException e) {
+            log.warn("Insufficient shares in sell request: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(new ErrorResponse("Insufficient Shares", e.getMessage()));
+        } catch (DatabaseException e) {
+            log.error("Database error processing sell request: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Transaction Error", "An error occurred while processing the sale"));
+        } catch (NullPointerException e) {
+            log.error("Null pointer in sell request: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Internal Error", "An unexpected error occurred"));
         } catch (Exception e) {
             log.error("Error processing sell request", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

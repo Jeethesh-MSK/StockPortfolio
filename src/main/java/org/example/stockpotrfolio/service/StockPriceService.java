@@ -1,6 +1,8 @@
 package org.example.stockpotrfolio.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.example.stockpotrfolio.exception.ExternalApiException;
+import org.example.stockpotrfolio.exception.ValidationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -68,6 +70,9 @@ public class StockPriceService {
         } catch (RestClientException e) {
             log.error("Failed to fetch stock price for symbol: {}. Error: {}", symbol, e.getMessage(), e);
             return null;
+        } catch (NullPointerException e) {
+            log.error("Null pointer while processing price for symbol: {}. Error: {}", symbol, e.getMessage(), e);
+            return null;
         } catch (Exception e) {
             log.error("Unexpected error occurred while fetching stock price for symbol: {}. Error: {}", symbol, e.getMessage(), e);
             return null;
@@ -80,11 +85,12 @@ public class StockPriceService {
      *
      * @param symbol the stock symbol
      * @return the current price as a Double
-     * @throws Exception if the price cannot be fetched
+     * @throws ValidationException if symbol is invalid
+     * @throws ExternalApiException if the price cannot be fetched
      */
-    public Double getCurrentPriceOrThrow(String symbol) throws Exception {
+    public Double getCurrentPriceOrThrow(String symbol) {
         if (symbol == null || symbol.trim().isEmpty()) {
-            throw new IllegalArgumentException("Stock symbol cannot be null or empty");
+            throw new ValidationException("Stock symbol cannot be null or empty");
         }
 
         try {
@@ -97,16 +103,16 @@ public class StockPriceService {
             Map<String, Object> response = restTemplate.getForObject(url, Map.class);
 
             if (response == null) {
-                throw new Exception("No response received from Finnhub API for symbol: " + symbol);
+                throw new ExternalApiException("No response received from Finnhub API for symbol: " + symbol, "Finnhub");
             }
 
             if (!response.containsKey(CURRENT_PRICE_FIELD)) {
-                throw new Exception("Response does not contain current price field for symbol: " + symbol);
+                throw new ExternalApiException("Response does not contain current price field for symbol: " + symbol, "Finnhub");
             }
 
             Object price = response.get(CURRENT_PRICE_FIELD);
             if (!(price instanceof Number)) {
-                throw new Exception("Price field is not a valid number for symbol: " + symbol);
+                throw new ExternalApiException("Price field is not a valid number for symbol: " + symbol, "Finnhub");
             }
 
             Double currentPrice = ((Number) price).doubleValue();
@@ -115,10 +121,15 @@ public class StockPriceService {
 
         } catch (RestClientException e) {
             log.error("REST client error while fetching stock price for symbol: {}. Error: {}", symbol, e.getMessage(), e);
-            throw new Exception("Failed to connect to Finnhub API for symbol: " + symbol, e);
+            throw new ExternalApiException("Failed to connect to Finnhub API for symbol: " + symbol, "Finnhub", e);
+        } catch (ValidationException | ExternalApiException e) {
+            throw e; // Re-throw custom exceptions
+        } catch (NullPointerException e) {
+            log.error("Null pointer while fetching price for symbol: {}. Error: {}", symbol, e.getMessage(), e);
+            throw new ExternalApiException("Error processing response for symbol: " + symbol, "Finnhub", e);
         } catch (Exception e) {
             log.error("Error occurred while fetching stock price for symbol: {}. Error: {}", symbol, e.getMessage(), e);
-            throw e;
+            throw new ExternalApiException("Unexpected error while fetching price for symbol: " + symbol, "Finnhub", e);
         }
     }
 }

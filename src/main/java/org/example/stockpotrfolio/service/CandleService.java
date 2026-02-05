@@ -46,37 +46,46 @@ public class CandleService {
 
         String upperSymbol = symbol.toUpperCase().trim();
 
-        // Check if API key is configured
-        if (!twelveDataService.isApiKeyConfigured()) {
-            log.error("Twelve Data API key is not configured");
-            return createErrorResponse("API_KEY_MISSING",
-                "Twelve Data API key is not configured. Please set twelvedata.api.key in application.properties");
-        }
+        try {
+            // Check if API key is configured
+            if (!twelveDataService.isApiKeyConfigured()) {
+                log.error("Twelve Data API key is not configured");
+                return createErrorResponse("API_KEY_MISSING",
+                    "Twelve Data API key is not configured. Please set twelvedata.api.key in application.properties");
+            }
 
-        // Map resolution to Twelve Data interval and get appropriate output size
-        String interval = TwelveDataService.mapResolutionToInterval(resolution);
-        int outputSize = TwelveDataService.getRecommendedOutputSize(resolution);  // Pass resolution, not interval
+            // Map resolution to Twelve Data interval and get appropriate output size
+            String interval = TwelveDataService.mapResolutionToInterval(resolution);
+            int outputSize = TwelveDataService.getRecommendedOutputSize(resolution);  // Pass resolution, not interval
 
-        log.info("Fetching candle data from Twelve Data for symbol: {}, interval: {}, outputSize: {}",
-                upperSymbol, interval, outputSize);
+            log.info("Fetching candle data from Twelve Data for symbol: {}, interval: {}, outputSize: {}",
+                    upperSymbol, interval, outputSize);
 
-        // Fetch from Twelve Data API
-        Map<String, Object> response = twelveDataService.getTimeSeries(upperSymbol, interval, outputSize);
+            // Fetch from Twelve Data API
+            Map<String, Object> response = twelveDataService.getTimeSeries(upperSymbol, interval, outputSize);
 
-        if (response == null) {
-            log.error("Failed to fetch candle data from Twelve Data for symbol: {}", upperSymbol);
-            return createErrorResponse("API_ERROR",
-                "Failed to fetch historical data for " + upperSymbol + ". Please try again later.");
-        }
+            if (response == null) {
+                log.error("Failed to fetch candle data from Twelve Data for symbol: {}", upperSymbol);
+                return createErrorResponse("API_ERROR",
+                    "Failed to fetch historical data for " + upperSymbol + ". Please try again later.");
+            }
 
-        // Check if response is an error
-        if ("error".equals(response.get("s"))) {
-            log.error("Twelve Data returned error for symbol {}: {}", upperSymbol, response.get("message"));
+            // Check if response is an error
+            if ("error".equals(response.get("s"))) {
+                log.error("Twelve Data returned error for symbol {}: {}", upperSymbol, response.get("message"));
+                return response;
+            }
+
+            log.info("Successfully fetched candle data from Twelve Data for symbol: {}", upperSymbol);
             return response;
-        }
 
-        log.info("Successfully fetched candle data from Twelve Data for symbol: {}", upperSymbol);
-        return response;
+        } catch (NullPointerException e) {
+            log.error("Null pointer while fetching candle data for symbol {}: {}", upperSymbol, e.getMessage(), e);
+            return createErrorResponse("INTERNAL_ERROR", "An error occurred while processing candle data.");
+        } catch (Exception e) {
+            log.error("Unexpected error fetching candle data for symbol {}: {}", upperSymbol, e.getMessage(), e);
+            return createErrorResponse("INTERNAL_ERROR", "An unexpected error occurred. Please try again later.");
+        }
     }
 
     /**

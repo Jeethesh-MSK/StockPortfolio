@@ -8,6 +8,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.example.stockpotrfolio.dto.ErrorResponse;
+import org.example.stockpotrfolio.exception.ExternalApiException;
+import org.example.stockpotrfolio.exception.RateLimitExceededException;
+import org.example.stockpotrfolio.exception.ValidationException;
 import org.example.stockpotrfolio.service.CandleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -135,6 +138,24 @@ public class CandleController {
             log.info("Successfully retrieved candle data for symbol: {}", symbol);
             return ResponseEntity.ok(candleData);
 
+        } catch (ValidationException e) {
+            log.warn("Validation error for candle data request: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(new ErrorResponse("Validation Error", e.getMessage()));
+        } catch (RateLimitExceededException e) {
+            log.warn("Rate limit exceeded for symbol {}: {}", symbol, e.getMessage());
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(new ErrorResponse("Rate Limit Exceeded", e.getMessage()));
+        } catch (ExternalApiException e) {
+            log.error("External API error fetching candle data for symbol {}: {}", symbol, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(new ErrorResponse("External Service Error",
+                            "Unable to fetch candle data from external service. Please try again later."));
+        } catch (NullPointerException e) {
+            log.error("Null pointer while fetching candle data for symbol {}: {}", symbol, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Internal Error",
+                            "An unexpected error occurred while fetching candle data"));
         } catch (Exception e) {
             log.error("Error fetching candle data for symbol: {}", symbol, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

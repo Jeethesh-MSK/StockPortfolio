@@ -3,8 +3,13 @@ package org.example.stockpotrfolio.service;
 import lombok.extern.slf4j.Slf4j;
 import org.example.stockpotrfolio.dto.PortfolioSummary;
 import org.example.stockpotrfolio.entity.PortfolioItem;
+import org.example.stockpotrfolio.exception.DatabaseException;
+import org.example.stockpotrfolio.exception.InsufficientSharesException;
+import org.example.stockpotrfolio.exception.ResourceNotFoundException;
+import org.example.stockpotrfolio.exception.ValidationException;
 import org.example.stockpotrfolio.repository.PortfolioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,46 +44,57 @@ public class PortfolioService {
      * @param buyPrice the price per share being bought
      * @param quantity the number of shares being bought
      * @return the updated or newly created PortfolioItem
-     * @throws IllegalArgumentException if any parameter is invalid
+     * @throws ValidationException if any parameter is invalid
+     * @throws DatabaseException if database operation fails
      */
     @Transactional
     public PortfolioItem buyStock(String symbol, Double buyPrice, Integer quantity) {
         // Validate input parameters
         if (symbol == null || symbol.trim().isEmpty()) {
             log.warn("Invalid symbol provided: null or empty");
-            throw new IllegalArgumentException("Stock symbol cannot be null or empty");
+            throw new ValidationException("Stock symbol cannot be null or empty");
         }
 
         if (buyPrice == null || buyPrice <= 0) {
             log.warn("Invalid buy price provided: {}", buyPrice);
-            throw new IllegalArgumentException("Buy price must be greater than 0");
+            throw new ValidationException("Buy price must be greater than 0");
         }
 
         if (quantity == null || quantity <= 0) {
             log.warn("Invalid quantity provided: {}", quantity);
-            throw new IllegalArgumentException("Quantity must be greater than 0");
+            throw new ValidationException("Quantity must be greater than 0");
         }
 
         final String finalSymbol = symbol.toUpperCase().trim();
         log.info("Processing buy stock request - Symbol: {}, Price: ${}, Quantity: {}", finalSymbol, buyPrice, quantity);
 
-        // Check if the stock already exists in the portfolio using efficient repository method
-        Optional<PortfolioItem> existingItem = portfolioRepository.findBySymbol(finalSymbol);
+        try {
+            // Check if the stock already exists in the portfolio using efficient repository method
+            Optional<PortfolioItem> existingItem = portfolioRepository.findBySymbol(finalSymbol);
 
-        PortfolioItem portfolioItem;
+            PortfolioItem portfolioItem;
 
-        if (existingItem.isPresent()) {
-            // Stock already exists - update it with weighted average price
-            portfolioItem = updateExistingStock(existingItem.get(), buyPrice, quantity);
-        } else {
-            // Stock doesn't exist - create a new portfolio item
-            portfolioItem = createNewStock(finalSymbol, buyPrice, quantity);
+            if (existingItem.isPresent()) {
+                // Stock already exists - update it with weighted average price
+                portfolioItem = updateExistingStock(existingItem.get(), buyPrice, quantity);
+            } else {
+                // Stock doesn't exist - create a new portfolio item
+                portfolioItem = createNewStock(finalSymbol, buyPrice, quantity);
+            }
+
+            log.info("Stock purchase completed - Symbol: {}, New Quantity: {}, New Avg Price: ${}",
+                    finalSymbol, portfolioItem.getQuantity(), portfolioItem.getAverageBuyPrice());
+
+            return portfolioItem;
+        } catch (DataAccessException e) {
+            log.error("Database error while buying stock {}: {}", finalSymbol, e.getMessage(), e);
+            throw new DatabaseException("Failed to complete stock purchase. Please try again later.", "buyStock", e);
+        } catch (ValidationException e) {
+            throw e; // Re-throw validation exceptions
+        } catch (Exception e) {
+            log.error("Unexpected error while buying stock {}: {}", finalSymbol, e.getMessage(), e);
+            throw new DatabaseException("An unexpected error occurred during the purchase.", "buyStock", e);
         }
-
-        log.info("Stock purchase completed - Symbol: {}, New Quantity: {}, New Avg Price: ${}",
-                finalSymbol, portfolioItem.getQuantity(), portfolioItem.getAverageBuyPrice());
-
-        return portfolioItem;
     }
 
     /**
@@ -137,13 +153,22 @@ public class PortfolioService {
      * Returns all portfolio items currently held.
      *
      * @return a list of all PortfolioItem objects
+     * @throws DatabaseException if database operation fails
      */
     @Transactional(readOnly = true)
     public List<PortfolioItem> getPortfolio() {
         log.info("Retrieving entire portfolio");
-        List<PortfolioItem> portfolio = portfolioRepository.findAll();
-        log.info("Portfolio contains {} items", portfolio.size());
-        return portfolio;
+        try {
+            List<PortfolioItem> portfolio = portfolioRepository.findAll();
+            log.info("Portfolio contains {} items", portfolio.size());
+            return portfolio;
+        } catch (DataAccessException e) {
+            log.error("Database error while retrieving portfolio: {}", e.getMessage(), e);
+            throw new DatabaseException("Failed to retrieve portfolio. Please try again later.", "getPortfolio", e);
+        } catch (Exception e) {
+            log.error("Unexpected error while retrieving portfolio: {}", e.getMessage(), e);
+            throw new DatabaseException("An unexpected error occurred while retrieving the portfolio.", "getPortfolio", e);
+        }
     }
 
     /**
@@ -151,18 +176,28 @@ public class PortfolioService {
      *
      * @param symbol the stock symbol
      * @return Optional containing the PortfolioItem if found, otherwise empty
+     * @throws ValidationException if symbol is invalid
+     * @throws DatabaseException if database operation fails
      */
     @Transactional(readOnly = true)
     public Optional<PortfolioItem> getPortfolioItemBySymbol(String symbol) {
         if (symbol == null || symbol.trim().isEmpty()) {
             log.warn("Invalid symbol provided: null or empty");
-            return Optional.empty();
+            throw new ValidationException("Stock symbol cannot be null or empty");
         }
 
         final String finalSymbol = symbol.toUpperCase().trim();
         log.info("Retrieving portfolio item for symbol: {}", finalSymbol);
 
-        return portfolioRepository.findBySymbol(finalSymbol);
+        try {
+            return portfolioRepository.findBySymbol(finalSymbol);
+        } catch (DataAccessException e) {
+            log.error("Database error while retrieving portfolio item for symbol {}: {}", finalSymbol, e.getMessage(), e);
+            throw new DatabaseException("Failed to retrieve portfolio item. Please try again later.", "getPortfolioItemBySymbol", e);
+        } catch (Exception e) {
+            log.error("Unexpected error while retrieving portfolio item for symbol {}: {}", finalSymbol, e.getMessage(), e);
+            throw new DatabaseException("An unexpected error occurred.", "getPortfolioItemBySymbol", e);
+        }
     }
 
     /**
@@ -304,54 +339,67 @@ public class PortfolioService {
      * @param symbol the stock symbol
      * @param quantity the number of shares to sell
      * @return the updated PortfolioItem, or null if all shares were sold (item removed)
-     * @throws IllegalArgumentException if parameters are invalid or insufficient shares
+     * @throws ValidationException if parameters are invalid
+     * @throws ResourceNotFoundException if stock is not in portfolio
+     * @throws InsufficientSharesException if not enough shares to sell
+     * @throws DatabaseException if database operation fails
      */
     @Transactional
     public PortfolioItem sellStock(String symbol, Integer quantity) {
         // Validate input parameters
         if (symbol == null || symbol.trim().isEmpty()) {
             log.warn("Invalid symbol provided: null or empty");
-            throw new IllegalArgumentException("Stock symbol cannot be null or empty");
+            throw new ValidationException("Stock symbol cannot be null or empty");
         }
 
         if (quantity == null || quantity <= 0) {
             log.warn("Invalid quantity provided: {}", quantity);
-            throw new IllegalArgumentException("Quantity must be greater than 0");
+            throw new ValidationException("Quantity must be greater than 0");
         }
 
         final String finalSymbol = symbol.toUpperCase().trim();
         log.info("Processing sell stock request - Symbol: {}, Quantity: {}", finalSymbol, quantity);
 
-        // Check if the stock exists in the portfolio using efficient repository method
-        Optional<PortfolioItem> existingItem = portfolioRepository.findBySymbol(finalSymbol);
+        try {
+            // Check if the stock exists in the portfolio using efficient repository method
+            Optional<PortfolioItem> existingItem = portfolioRepository.findBySymbol(finalSymbol);
 
-        if (existingItem.isEmpty()) {
-            log.warn("Stock symbol not found in portfolio: {}", finalSymbol);
-            throw new IllegalArgumentException("Stock symbol not found in portfolio: " + finalSymbol);
-        }
+            if (existingItem.isEmpty()) {
+                log.warn("Stock symbol not found in portfolio: {}", finalSymbol);
+                throw new ResourceNotFoundException("PortfolioItem", finalSymbol);
+            }
 
-        PortfolioItem portfolioItem = existingItem.get();
-        Integer currentQuantity = portfolioItem.getQuantity();
+            PortfolioItem portfolioItem = existingItem.get();
+            Integer currentQuantity = portfolioItem.getQuantity();
 
-        if (quantity > currentQuantity) {
-            log.warn("Insufficient shares - Attempting to sell {} but only {} available", quantity, currentQuantity);
-            throw new IllegalArgumentException("Insufficient shares. You have " + currentQuantity + " shares but trying to sell " + quantity);
-        }
+            if (quantity > currentQuantity) {
+                log.warn("Insufficient shares - Attempting to sell {} but only {} available", quantity, currentQuantity);
+                throw new InsufficientSharesException(finalSymbol, quantity, currentQuantity);
+            }
 
-        Integer newQuantity = currentQuantity - quantity;
+            Integer newQuantity = currentQuantity - quantity;
 
-        if (newQuantity == 0) {
-            // Remove the item entirely if all shares are sold
-            log.info("All shares sold for symbol: {}. Removing portfolio item.", finalSymbol);
-            portfolioRepository.delete(portfolioItem);
-            return null;
-        } else {
-            // Update the quantity
-            portfolioItem.setQuantity(newQuantity);
-            portfolioRepository.save(portfolioItem);
-            log.info("Stock sale completed - Symbol: {}, Quantity Sold: {}, Remaining: {}",
-                    finalSymbol, quantity, newQuantity);
-            return portfolioItem;
+            if (newQuantity == 0) {
+                // Remove the item entirely if all shares are sold
+                log.info("All shares sold for symbol: {}. Removing portfolio item.", finalSymbol);
+                portfolioRepository.delete(portfolioItem);
+                return null;
+            } else {
+                // Update the quantity
+                portfolioItem.setQuantity(newQuantity);
+                portfolioRepository.save(portfolioItem);
+                log.info("Stock sale completed - Symbol: {}, Quantity Sold: {}, Remaining: {}",
+                        finalSymbol, quantity, newQuantity);
+                return portfolioItem;
+            }
+        } catch (ValidationException | ResourceNotFoundException | InsufficientSharesException e) {
+            throw e; // Re-throw custom exceptions
+        } catch (DataAccessException e) {
+            log.error("Database error while selling stock {}: {}", finalSymbol, e.getMessage(), e);
+            throw new DatabaseException("Failed to complete stock sale. Please try again later.", "sellStock", e);
+        } catch (Exception e) {
+            log.error("Unexpected error while selling stock {}: {}", finalSymbol, e.getMessage(), e);
+            throw new DatabaseException("An unexpected error occurred during the sale.", "sellStock", e);
         }
     }
 }

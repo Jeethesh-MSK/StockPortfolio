@@ -9,6 +9,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.example.stockpotrfolio.dto.ErrorResponse;
+import org.example.stockpotrfolio.exception.ExternalApiException;
+import org.example.stockpotrfolio.exception.ValidationException;
 import org.example.stockpotrfolio.service.StockPriceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -86,6 +88,20 @@ public class StockController {
             log.info("Successfully retrieved price for symbol {}: ${}", symbol, price);
             return ResponseEntity.ok(new StockPriceResponse(symbol.toUpperCase(), price));
 
+        } catch (ValidationException e) {
+            log.warn("Validation error for symbol {}: {}", symbol, e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(new ErrorResponse("Validation Error", e.getMessage()));
+        } catch (ExternalApiException e) {
+            log.error("External API error fetching price for symbol {}: {}", symbol, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(new ErrorResponse("External Service Error",
+                            "Unable to fetch stock price from external service. Please try again later."));
+        } catch (NullPointerException e) {
+            log.error("Null pointer while fetching price for symbol {}: {}", symbol, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Internal Error",
+                            "An unexpected error occurred while fetching the stock price"));
         } catch (Exception e) {
             log.error("Unexpected error occurred while fetching price for symbol: {}", symbol, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
